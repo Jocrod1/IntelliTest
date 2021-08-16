@@ -6,9 +6,10 @@
  * @flow strict-local
  */
 
-import React from 'react';
-import type {Node} from 'react';
+import React, {useEffect} from 'react';
 import {
+  ActivityIndicator,
+  Button,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -25,68 +26,139 @@ import {
   LearnMoreLinks,
   ReloadInstructions,
 } from 'react-native/Libraries/NewAppScreen';
+import {AuthContext} from './src/Navigation/context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {NavigationContainer} from '@react-navigation/native';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import LoginScreen from './src/screens/Login/Login';
+import RootNavigation from './src/Navigation/RootStack';
+import WelcomeNavigation from './src/Navigation/WelcomeNavigation';
+import ImageView from './src/widgets/ImageView';
+import icLogo from './src/assets/icons/logo.png';
 
-const Section = ({children, title}): Node => {
-  const isDarkMode = useColorScheme() === 'dark';
+const DetailsScreen = ({navigation}) => {
   return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
+    <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
+      <Text>Details Screen</Text>
+      <Button title="Go Back" onPress={() => navigation.goBack()} />
     </View>
   );
 };
 
-const App: () => Node = () => {
-  const isDarkMode = useColorScheme() === 'dark';
+const Stack = createNativeStackNavigator();
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+const App = () => {
+  const [Modules, setModules] = React.useState([]);
+
+  const initialLoginState = {
+    isLoading: true,
+    userToken: null,
   };
 
+  const loginReducer = (prevState, action) => {
+    switch (action.type) {
+      case 'RETRIEVE_TOKEN':
+        return {
+          ...prevState,
+          userToken: action.userToken,
+          isLoading: false,
+        };
+      case 'LOGIN':
+        return {
+          ...prevState,
+          userToken: action.userToken,
+          isLoading: false,
+        };
+      case 'LOGOUT':
+        return {
+          ...prevState,
+          userToken: null,
+          isLoading: false,
+        };
+      case 'REGISTER':
+        return {
+          ...prevState,
+          userToken: action.userToken,
+          isLoading: false,
+        };
+    }
+  };
+
+  const [loginState, dispatch] = React.useReducer(
+    loginReducer,
+    initialLoginState,
+  );
+
+  const authContext = React.useMemo(
+    () => ({
+      signIn: token => {
+        // setUserToken('fgks');
+        // setIsLoading(false);
+        dispatch({type: 'LOGIN', userToken: token});
+      },
+      signOut: async () => {
+        // setUserToken(null);
+        // setIsLoading(false);
+        try {
+          await AsyncStorage.removeItem('@User_object');
+        } catch (e) {
+          console.log(e);
+        }
+        dispatch({type: 'LOGOUT'});
+      },
+    }),
+    [],
+  );
+
+  useEffect(() => {
+    setTimeout(async () => {
+      const item = await AsyncStorage.getItem('@User_object');
+      const ValueUser = item != null ? JSON.parse(item) : null;
+
+      if (ValueUser) {
+        setModules(ValueUser.modules);
+      }
+
+      // console.log(ValueUser.modules);
+      //ALGORITMO PARA HACER EL MENU ARBOL (LISTO :D)
+      //En la lista, hay varios que no se renderizan
+      //dichos que no se renderizan pueden ser padres
+      //hay que filtrar todas las opciones que no se renderizan
+      //ya sea que sus padres tienen "is_render" false o que ellos mismos tienen "is_render" en false
+
+      dispatch({
+        type: 'RETRIEVE_TOKEN',
+        userToken: ValueUser ? ValueUser?.token : null,
+      });
+    }, 1000);
+  }, []);
+
+  if (loginState.isLoading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: 'white',
+        }}>
+        <ImageView style={styles.icon} resizeMode="contain" source={icLogo} />
+      </View>
+    );
+  }
+
+  // console.log(loginState.userToken);
+
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.js</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <AuthContext.Provider value={authContext}>
+      <NavigationContainer>
+        {loginState.userToken !== null ? (
+          <WelcomeNavigation modules={Modules} />
+        ) : (
+          <RootNavigation />
+        )}
+      </NavigationContainer>
+    </AuthContext.Provider>
   );
 };
 
@@ -106,6 +178,13 @@ const styles = StyleSheet.create({
   },
   highlight: {
     fontWeight: '700',
+  },
+  icon: {
+    width: 250,
+    height: 130,
+    alignSelf: 'center',
+    marginBottom: 32,
+    marginTop: 50,
   },
 });
 
